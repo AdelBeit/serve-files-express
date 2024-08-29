@@ -11,7 +11,7 @@ export default class FTPClientPool {
 
   async initPool() {
     for (let i = 0; i < this.poolSize; i++) {
-      const client = new Client();
+      const client = new Client(process.env.VERCEL_TIMEOUT);
       // client.ftp.verbose = true;
       await client.access(this.config);
       this.pool.push(client);
