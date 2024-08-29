@@ -2,7 +2,7 @@
   "name": "ftp-https-express",
   "version": "1.0.0",
   "main": "server.js",
-  "license": "MIT",
+  "license": "MPL-2.0",
   "type": "module",
   "dependencies": {
     "basic-ftp": "^5.0.5",
