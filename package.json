@@ -1,0 +1,17 @@
+{
+  "name": "ftp-https-express",
+  "version": "1.0.0",
+  "main": "server.js",
+  "license": "MIT",
+  "type": "module",
+  "dependencies": {
+    "basic-ftp": "^5.0.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2"
+  },
+  "scripts": {
+    "dev": "node server.js",
+    "start": "yarn dev",
+    "build": "yarn dev"
+  }
+}
