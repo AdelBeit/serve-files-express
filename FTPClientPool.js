@@ -19,6 +19,7 @@ export default class FTPClientPool {
     if (this.stopped) {
       for (let i = 0; i < this.poolSize; i++) {
         const client = new Client();
+        client.ftp.verbose = true;
         await client.access(this.config);
         this.pool.push(client);
       }
