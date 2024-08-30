@@ -11,15 +11,18 @@ export default class FTPClientPool {
     this.poolSize = poolSize;
     this.pool = [];
     this.queue = [];
+    this.stopped = true;
     this.initPool();
   }
 
   async initPool() {
-    for (let i = 0; i < this.poolSize; i++) {
-      const client = new Client();
-      // client.ftp.verbose = true;
-      await client.access(this.config);
-      this.pool.push(client);
+    if (this.stopped) {
+      for (let i = 0; i < this.poolSize; i++) {
+        const client = new Client();
+        await client.access(this.config);
+        this.pool.push(client);
+      }
+      this.stopped = false;
     }
   }
 
@@ -42,9 +45,12 @@ export default class FTPClientPool {
     }
   }
 
-  async close(){
-    for(const client of this.pool){
-      client.close();
+  async close() {
+    if (!this.stopped) {
+      for (const client of this.pool) {
+        client.close();
+      }
+      this.stopped = true;
     }
   }
 }

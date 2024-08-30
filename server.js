@@ -112,13 +112,23 @@ app.get("/download/*", async (req, res) => {
   }
 });
 
-app.get("/close", async (req, res) => {
+app.get(["/close","/stop"], async (req, res) => {
   try {
     await pool.close();
     res.send("all clients closed");
   } catch (e) {
     console.error("failed to close clients", e);
     res.status(500).send("faield to close clients");
+  }
+});
+
+app.get("/start", async (req, res) => {
+  try {
+    await pool.initPool();
+    res.send("pool started");
+  } catch (e) {
+    console.error("failed to start clients", e);
+    res.status(500).send("faield to start clients");
   }
 });
 
