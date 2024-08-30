@@ -11,7 +11,7 @@
   },
   "scripts": {
     "dev": "node server.js",
-    "start": "yarn dev",
-    "build": "yarn dev"
+    "build-sdk":"cd ../../; npm i; npm run build",
+    "start":"node server.js"
   }
 }
