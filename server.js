@@ -3,35 +3,9 @@ import path from "path";
 import FTPClientPool from "./FTPClientPool.js";
 import { PassThrough } from "stream";
 import dotenv from "dotenv";
-import { URL } from "url";
 
 dotenv.config();
 const app = express();
-const router = express.Router();
-
-router.use((req, res, next) => {
-  // Create a URL object using the request's URL
-  const requestUrl = new URL(
-    req.protocol + "://" + req.get("host") + req.originalUrl
-  );
-
-  // Construct an object with URL information
-  const urlInfo = {
-    fullURL: requestUrl.href,
-    origin: requestUrl.origin,
-    originalUrl: req.originalUrl,
-    pathname: requestUrl.pathname,
-    protocol: requestUrl.protocol,
-    host: requestUrl.host,
-    params: req.params,
-  };
-
-  console.log("URL Information:", urlInfo);
-
-  next();
-});
-
-// app.use("/", router);
 
 const HOST = process.env.VERCEL_HOST;
 const USER = process.env.VERCEL_USER;
@@ -56,22 +30,22 @@ app.get("/browse/*", async (req, res) => {
     let html = `<h2>Browsing: ${FTPPath} []</h2>`;
     if (FTPPath !== "/") {
       const parentPath = "../";
-      html += `<li><a href="${parentPath}">[Parent Directory]</a></li>`;
+      html += `<p><a href="${parentPath}">[Parent Directory]</a></p>`;
     }
     fileList.forEach((file) => {
       let href = file.name;
       if (file.isDirectory) {
-        html += `<li><a href="${href}/">[DIR] ${file.name}</a></li>`;
+        html += `<p><a href="${href}/">[DIR] ${file.name}</a></p>`;
       } else {
-        href = encodeURIComponent(path.join(FTPPath, file.name));
-        if (file.name.match(/mp3|wav/gi)) {
-          html += `<p>${file.name}</p>`;
-          html += `<audio controls><source src="/stream/${href}" type="audio/mpeg">Your browser does not support the audio element.</audio>`;
+        href = path.join(FTPPath, file.name);
+        if (file.name.match(/^(?!\._).*(mp3|wav)/gi)) {
+          const streamURL = `${req.protocol}://${req.get("host")}/stream/${href}`;
+          html += `<p><a href="/stream/${href}">${streamURL}</a></p>`;
+          // html += `<p><audio controls><source src="/stream/${href}" type="audio/mpeg">Your browser does not support the audio element.</audio></p>`;
+          html += `<p><a href="/download/${href}">download ${file.name}</a><p>`;
         }
-        html += `<li><a href="/download/${href}">download ${file.name}</a></li>`;
       }
     });
-    html += "</ul>";
     res.send(html);
   } catch (err) {
     console.error("Failed to browse directory:", err);
@@ -139,9 +113,9 @@ app.get("/download/*", async (req, res) => {
 });
 
 app.get("/close", async (req, res) => {
-  let client;
   try {
-    client = await pool.close();
+    await pool.close();
+    res.send("all clients closed");
   } catch (e) {
     console.error("failed to close clients", e);
     res.status(500).send("faield to close clients");
