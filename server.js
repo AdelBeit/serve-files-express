@@ -148,10 +148,8 @@ app.get("/close", async (req, res) => {
   }
 });
 
-if (ENV === "local") {
-  app.listen(PORT, () => {
-    console.log(`Server is running on ${PORT}`);
-  });
-}
+app.listen(PORT, () => {
+  console.log(`Server is running on ${PORT}`);
+});
 
 export default app;
