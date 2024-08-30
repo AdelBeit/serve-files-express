@@ -118,7 +118,7 @@ app.get(["/close","/stop"], async (req, res) => {
     res.send("all clients closed");
   } catch (e) {
     console.error("failed to close clients", e);
-    res.status(500).send("faield to close clients");
+    res.status(500).send("failed to close clients");
   }
 });
 
@@ -128,7 +128,7 @@ app.get("/start", async (req, res) => {
     res.send("pool started");
   } catch (e) {
     console.error("failed to start clients", e);
-    res.status(500).send("faield to start clients");
+    res.status(500).send("failed to start clients");
   }
 });
 
