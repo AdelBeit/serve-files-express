@@ -1,7 +1,12 @@
 import { Client } from "basic-ftp";
+import dotenv from "dotenv";
+
+dotenv.config();
+const TIMEOUT = parseInt(process.env.VERCEL_TIMEOUT) || 60000;
+const POOL_SIZE = process.env.VERCEL_POOL_SIZE || 3;
 
 export default class FTPClientPool {
-  constructor(config, poolSize = 4) {
+  constructor(config, poolSize = POOL_SIZE) {
     this.config = config;
     this.poolSize = poolSize;
     this.pool = [];
@@ -11,7 +16,7 @@ export default class FTPClientPool {
 
   async initPool() {
     for (let i = 0; i < this.poolSize; i++) {
-      const client = new Client(process.env.VERCEL_TIMEOUT);
+      const client = new Client();
       // client.ftp.verbose = true;
       await client.access(this.config);
       this.pool.push(client);
