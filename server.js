@@ -132,8 +132,18 @@ app.get("/start", async (req, res) => {
   }
 });
 
+const shutdown = async () => {
+  console.log('Shutting down...');
+  await pool.close(); // Ensure all FTP clients are closed
+  process.exit(0); // Exit the process
+};
+
+process.on('SIGTERM', shutdown); // Handle termination signal
+process.on('SIGINT', shutdown);  // Handle interrupt signal
+
 app.listen(PORT, () => {
   console.log(`Server is running on ${PORT}`);
 });
 
 export default app;
+
