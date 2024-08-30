@@ -3,6 +3,7 @@ import path from "path";
 import FTPClientPool from "./FTPClientPool.js";
 import { PassThrough } from "stream";
 import dotenv from "dotenv";
+import mcache from "memory-cache";
 
 dotenv.config();
 const app = express();
@@ -12,6 +13,7 @@ const USER = process.env.VERCEL_USER;
 const PASSWORD = process.env.VERCEL_PASSWORD;
 const PORT = process.env.VERCEL_PORT || 3000;
 const ENV = process.env.VERCEL_ENV;
+const CACHE_DURATION = process.env.VERCEL_CACHE_DURATION || 24 * 60 * 60 * 1000; // 24 hours
 const ftpConfig = {
   host: HOST,
   user: USER,
@@ -19,6 +21,31 @@ const ftpConfig = {
   secure: false,
 };
 const pool = new FTPClientPool(ftpConfig);
+
+const cacheMiddleware = (duration) => {
+  return (req, res, next) => {
+    let key = "__express__" + req.originalUrl || req.url;
+    let cachedBody = mcache.get(key);
+    if (cachedBody) {
+      console.log("Serving from cache:", key);
+      res.send(cachedBody);
+      return;
+    } else {
+      console.log("Cache miss, fetching from server:", key);
+    }
+    if (!res.sendResponse) {
+      res.sendResponse = res.send;
+      res.send = (body) => {
+        mcache.put(key, body, duration);
+        res.sendResponse(body);
+      };
+    }
+    next();
+  };
+};
+
+app.use(cacheMiddleware(CACHE_DURATION));
+
 
 app.get("/browse/*", async (req, res) => {
   const FTPPath = req.params[0] || "/";
@@ -39,7 +66,9 @@ app.get("/browse/*", async (req, res) => {
       } else {
         href = path.join(FTPPath, file.name);
         if (file.name.match(/^(?!\._).*(mp3|wav)/gi)) {
-          const streamURL = `${req.protocol}://${req.get("host")}/stream/${href}`;
+          const streamURL = `${req.protocol}://${req.get(
+            "host"
+          )}/stream/${href}`;
           html += `<p><a href="/stream/${href}">${streamURL}</a></p>`;
           // html += `<p><audio controls><source src="/stream/${href}" type="audio/mpeg">Your browser does not support the audio element.</audio></p>`;
           html += `<p><a href="/download/${href}">download ${file.name}</a><p>`;
@@ -112,7 +141,7 @@ app.get("/download/*", async (req, res) => {
   }
 });
 
-app.get(["/close","/stop"], async (req, res) => {
+app.get(["/close", "/stop"], async (req, res) => {
   try {
     await pool.close();
     res.send("all clients closed");
@@ -133,17 +162,16 @@ app.get("/start", async (req, res) => {
 });
 
 const shutdown = async () => {
-  console.log('Shutting down...');
+  console.log("Shutting down...");
   await pool.close(); // Ensure all FTP clients are closed
   process.exit(0); // Exit the process
 };
 
-process.on('SIGTERM', shutdown); // Handle termination signal
-process.on('SIGINT', shutdown);  // Handle interrupt signal
+process.on("SIGTERM", shutdown); // Handle termination signal
+process.on("SIGINT", shutdown); // Handle interrupt signal
 
 app.listen(PORT, () => {
   console.log(`Server is running on ${PORT}`);
 });
 
 export default app;
-
