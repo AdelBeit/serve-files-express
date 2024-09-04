@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 dotenv.config();
 const TIMEOUT = parseInt(process.env.VERCEL_TIMEOUT) || 60000;
 const CONCURRENCY_LIMIT = process.env.VERCEL_POOL_SIZE || 3;
+const FTP_VERBOSE = false;//process.env.FTP_VERBOSE || false;
 
 export default class FTPClientManager {
   constructor(config, poolSize = CONCURRENCY_LIMIT) {
@@ -17,7 +18,7 @@ export default class FTPClientManager {
 
   async processJob(job) {
     const client = new Client();
-    client.ftp.verbose = true;
+    client.ftp.verbose = FTP_VERBOSE;
 
     try {
       await client.access(this.config);
@@ -50,7 +51,7 @@ export default class FTPClientManager {
     if (this.stopped) {
       for (let i = 0; i < this.poolSize; i++) {
         const client = new Client();
-        client.ftp.verbose = true;
+        client.ftp.verbose = FTP_VERBOSE;
         await client.access(this.config);
         this.pool.push(client);
       }
