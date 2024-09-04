@@ -11,7 +11,7 @@ const app = express();
 const HOST = process.env.VERCEL_HOST;
 const USER = process.env.VERCEL_USER;
 const PASSWORD = process.env.VERCEL_PASSWORD;
-const PORT = process.env.VERCEL_PORT || 3000;
+const PORT = process.env.PORT || 3333;
 const ENV = process.env.VERCEL_ENV;
 const CACHE_DURATION = process.env.VERCEL_CACHE_DURATION || 24 * 60 * 60 * 1000; // 24 hours
 const ftpConfig = {
@@ -136,7 +136,7 @@ app.get("/download/*", async (req, res) => {
     const passThrough = new PassThrough();
     passThrough.pipe(res);
     await client.downloadTo(passThrough, ftpFilePath);
-  }
+  };
 
   try {
     await clientManager.enqueueJob(downloadFileJob);
