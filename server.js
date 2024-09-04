@@ -56,7 +56,7 @@ app.get("/browse/*", async (req, res) => {
   const listFilesJob = async (client) => {
     const fileList = await client.list(FTPPath);
 
-    let html = `<h2>Browsing: ${FTPPath} []</h2>`;
+    let html = `<h2>Browsing: ${FTPPath}</h2>`;
     if (FTPPath !== "/") {
       const parentPath = "../";
       html += `<p><a href="${parentPath}">[Parent Directory]</a></p>`;
