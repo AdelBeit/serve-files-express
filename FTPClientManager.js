@@ -3,16 +3,47 @@ import dotenv from "dotenv";
 
 dotenv.config();
 const TIMEOUT = parseInt(process.env.VERCEL_TIMEOUT) || 60000;
-const POOL_SIZE = process.env.VERCEL_POOL_SIZE || 3;
+const CONCURRENCY_LIMIT = process.env.VERCEL_POOL_SIZE || 3;
 
-export default class FTPClientPool {
-  constructor(config, poolSize = POOL_SIZE) {
+export default class FTPClientManager {
+  constructor(config, poolSize = CONCURRENCY_LIMIT) {
     this.config = config;
     this.poolSize = poolSize;
     this.pool = [];
     this.queue = [];
     this.stopped = true;
-    this.initPool();
+    this.activeJobs = 0;
+  }
+
+  async processJob(job) {
+    const client = new Client();
+    client.ftp.verbose = true;
+
+    try {
+      await client.access(this.config);
+      await job(client);
+    } catch (error) {
+      console.error("FTP job failed:", error);
+    } finally {
+      client.close();
+      this.activeJobs--;
+      this.processNext();
+    }
+  }
+
+  async enqueueJob(job) {
+    this.queue.push(job);
+    this.processNext();
+  }
+
+  async processNext() {
+    if (this.activeJobs >= CONCURRENCY_LIMIT || this.queue.length === 0) {
+      return;
+    }
+
+    this.activeJobs++;
+    const job = this.queue.shift();
+    await this.processJob(job);
   }
 
   async initPool() {

@@ -1,6 +1,6 @@
 import express from "express";
 import path from "path";
-import FTPClientPool from "./FTPClientPool.js";
+import FTPClientManager from "./FTPClientManager.js";
 import { PassThrough } from "stream";
 import dotenv from "dotenv";
 import mcache from "memory-cache";
@@ -20,7 +20,7 @@ const ftpConfig = {
   password: PASSWORD,
   secure: false,
 };
-const pool = new FTPClientPool(ftpConfig);
+const clientManager = new FTPClientManager(ftpConfig);
 
 const cacheMiddleware = (duration) => {
   return (req, res, next) => {
@@ -46,12 +46,14 @@ const cacheMiddleware = (duration) => {
 
 app.use(cacheMiddleware(CACHE_DURATION));
 
+app.get("/", async (req, res) => {
+  res.send("app is live!");
+});
 
 app.get("/browse/*", async (req, res) => {
   const FTPPath = req.params[0] || "/";
-  let client;
-  try {
-    client = await pool.acquire();
+
+  const listFilesJob = async (client) => {
     const fileList = await client.list(FTPPath);
 
     let html = `<h2>Browsing: ${FTPPath} []</h2>`;
@@ -76,19 +78,20 @@ app.get("/browse/*", async (req, res) => {
       }
     });
     res.send(html);
+  };
+
+  try {
+    await clientManager.enqueueJob(listFilesJob);
   } catch (err) {
     console.error("Failed to browse directory:", err);
     res.status(500).send("Failed to browse directory.");
-  } finally {
-    if (client) pool.release(client);
   }
 });
 
 app.get("/stream/*", async (req, res) => {
   const ftpFilePath = decodeURIComponent(req.params[0]);
-  let client;
-  try {
-    client = await pool.acquire();
+
+  const streamFileJob = async (client) => {
     const fileSize = await client.size(ftpFilePath);
     const range = req.headers.range;
     if (!range) {
@@ -112,19 +115,19 @@ app.get("/stream/*", async (req, res) => {
       passThrough.pipe(res);
       await client.downloadTo(passThrough, ftpFilePath, start);
     }
+  };
+  try {
+    await clientManager.enqueueJob(streamFileJob);
   } catch (e) {
     console.error("failed to stream file", e);
     res.status(500).send("failed to stream file");
-  } finally {
-    if (client) pool.release(client);
   }
 });
 
 app.get("/download/*", async (req, res) => {
   const ftpFilePath = decodeURIComponent(req.params[0]);
-  let client;
-  try {
-    client = await pool.acquire();
+
+  const downloadFileJob = async (client) => {
     res.setHeader(
       "Content-Disposition",
       `attachment; filename="${path.basename(ftpFilePath)}"`
@@ -133,42 +136,15 @@ app.get("/download/*", async (req, res) => {
     const passThrough = new PassThrough();
     passThrough.pipe(res);
     await client.downloadTo(passThrough, ftpFilePath);
+  }
+
+  try {
+    await clientManager.enqueueJob(downloadFileJob);
   } catch (e) {
     console.error("failed to download file", e);
     res.status(500).send("failed to download file");
-  } finally {
-    if (client) pool.release(client);
   }
 });
-
-app.get(["/close", "/stop"], async (req, res) => {
-  try {
-    await pool.close();
-    res.send("all clients closed");
-  } catch (e) {
-    console.error("failed to close clients", e);
-    res.status(500).send("failed to close clients");
-  }
-});
-
-app.get("/start", async (req, res) => {
-  try {
-    await pool.initPool();
-    res.send("pool started");
-  } catch (e) {
-    console.error("failed to start clients", e);
-    res.status(500).send("failed to start clients");
-  }
-});
-
-const shutdown = async () => {
-  console.log("Shutting down...");
-  await pool.close(); // Ensure all FTP clients are closed
-  process.exit(0); // Exit the process
-};
-
-process.on("SIGTERM", shutdown); // Handle termination signal
-process.on("SIGINT", shutdown); // Handle interrupt signal
 
 app.listen(PORT, () => {
   console.log(`Server is running on ${PORT}`);
