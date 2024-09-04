@@ -33,9 +33,15 @@ const cacheMiddleware = (duration) => {
     } else {
       console.log("Cache miss, fetching from server:", key);
     }
+
     if (!res.sendResponse) {
       res.sendResponse = res.send;
       res.send = (body) => {
+        if (typeof body === "string") {
+          const style = "<style>html{font-size:30px;}</style>";
+          body = style + body;
+        }
+
         mcache.put(key, body, duration);
         res.sendResponse(body);
       };
@@ -47,7 +53,7 @@ const cacheMiddleware = (duration) => {
 app.use(cacheMiddleware(CACHE_DURATION));
 
 app.get("/", async (req, res) => {
-  res.send("app is live!");
+  res.send("<p>app is live!</p><p><a href='/browse/'>browse</a></p>");
 });
 
 app.get("/browse/*", async (req, res) => {
