@@ -8,16 +8,23 @@ const CLIENT_CLEANUP_TIMEOUT = process.env.CLIENT_CLEANUP_TIMEOUT || 5000 * 60;
 const CONCURRENCY_LIMIT = process.env.VERCEL_POOL_SIZE || 3;
 const FTP_VERBOSE = false; //process.env.FTP_VERBOSE || false;
 
-export default class FTPClientManager {
-  constructor(config, poolSize = CONCURRENCY_LIMIT) {
-    this.config = config;
+export default class PoolManager {
+  constructor(poolSize = CONCURRENCY_LIMIT) {
     this.poolSize = poolSize;
-    this.pool = [];
-    this.queue = [];
+    this.clientPool = [];
+    this.jobQueue = [];
     this.stopped = true;
     this.activeJobs = 0;
     this.initPool();
     this.lastChanged = Date.now();
+  }
+  
+  generateJob(i){
+    return setTimeout(()=>console.log('job:',i,'done'),3000);
+  }
+
+  async processJob(){
+
   }
 
   async processJob(job) {

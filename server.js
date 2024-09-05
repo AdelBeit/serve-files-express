@@ -3,7 +3,7 @@ import path from "path";
 import FTPClientManager from "./FTPClientManager.js";
 import { PassThrough } from "stream";
 import dotenv from "dotenv";
-import mcache from "memory-cache";
+import NodeCache from "node-cache";
 
 dotenv.config();
 const app = express();
@@ -21,31 +21,78 @@ const ftpConfig = {
   secure: false,
 };
 const clientManager = new FTPClientManager(ftpConfig);
+const cache = new NodeCache({ stdTTL: 3600 });
 
 const cacheMiddleware = (duration) => {
   return (req, res, next) => {
-    let key = "__express__" + req.originalUrl || req.url;
-    let cachedBody = mcache.get(key);
-    if (cachedBody) {
-      console.log("Serving from cache:", key);
-      res.send(cachedBody);
-      return;
+    const fileName = req.query.filename;
+    const range = req.headers.range;
+    let cacheKey;
+    let cachedData;
+    // serve html
+    if (req.originalUrl.endsWith("/")) {
+      cacheKey = `page_${req.originalUrl || req.url}`;
+      cachedData = cache.get(cacheKey);
+      if (cachedData) {
+        console.log("Serving page from cache:", cacheKey);
+        res.send(cachedData);
+        return;
+      } else {
+        console.log("Cache miss, fetching page from server:", cacheKey);
+      }
     } else {
-      console.log("Cache miss, fetching from server:", key);
+      // serve files (full, partial)
+      cacheKey = `file_${fileName}_full`;
+      let resHeadStatus = 200;
+      let resHead = {
+        "Content-Type": "audio/mpeg",
+      };
+      if (range) {
+        cacheKey = `file_${fileName}_${range}`;
+        resHeadStatus = 206;
+      }
+      cachedData = cache.get(cacheKey);
+      if (cachedData) {
+        if (range) {
+          resHead["Content-Range"] = cachedData.range;
+          resHead["Accept-Ranges"] = "bytes";
+        }
+        resHead["Content-Length"] = cachedData.length;
+        // Serve from cache
+        console.log("Serving file from cache:", cacheKey);
+        res.writeHead(resHeadStatus, resHead);
+        res.end(cachedData.data);
+        return;
+      } else {
+        console.log("Cache miss, fetching file from server:", cacheKey);
+      }
     }
 
+    // Override the response send method to cache the response
     if (!res.sendResponse) {
       res.sendResponse = res.send;
       res.send = (body) => {
-        if (typeof body === "string") {
-          const style = "<style>html{font-size:30px;}</style>";
-          body = style + body;
-        }
+        // Binary data should not be altered, so check if the body is a Buffer
+        if (Buffer.isBuffer(body)) {
+          let dataToCache = { length: body.length, data: body };
+          if (range) {
+            dataToCache.range = `bytes ${range}`;
+          }
+          cache.set(cacheKey, dataToCache, duration);
+          res.sendResponse(body);
+        } else {
+          // Handle string data as before
+          if (typeof body === "string") {
+            const style = "<style>html{font-size:30px;}</style>";
+            body = style + body;
+          }
 
-        mcache.put(key, body, duration);
-        res.sendResponse(body);
+          cache.set(cacheKey, body, duration);
+          res.sendResponse(body);
+        }
       };
     }
+    console.log("stats", cache.stats);
     next();
   };
 };
@@ -73,17 +120,19 @@ app.get("/browse/*", async (req, res) => {
         html += `<p><a href="${href}/">[DIR] ${file.name}</a></p>`;
       } else {
         href = path.join(FTPPath, file.name);
+        href += `?filename=${file.name}`;
         if (file.name.match(/^(?!\._).*(mp3|wav)/gi)) {
           const streamURL = `${req.protocol}://${req.get(
             "host"
           )}/stream/${href}`;
           html += `<p><a href="/stream/${href}">${streamURL}</a></p>`;
-          // html += `<p><audio controls><source src="/stream/${href}" type="audio/mpeg">Your browser does not support the audio element.</audio></p>`;
+          html += `<p><audio controls><source src="/stream/${href}" type="audio/mpeg">Your browser does not support the audio element.</audio></p>`;
           html += `<p><a href="/download/${href}">download ${file.name}</a><p>`;
         }
       }
     });
     res.send(html);
+    return;
   };
 
   try {
@@ -96,7 +145,6 @@ app.get("/browse/*", async (req, res) => {
 
 app.get("/stream/*", async (req, res) => {
   const ftpFilePath = decodeURIComponent(req.params[0]);
-
   const streamFileJob = async (client) => {
     const fileSize = await client.size(ftpFilePath);
     const range = req.headers.range;
@@ -121,6 +169,7 @@ app.get("/stream/*", async (req, res) => {
       passThrough.pipe(res);
       await client.downloadTo(passThrough, ftpFilePath, start);
     }
+    return;
   };
   try {
     await clientManager.enqueueJob(streamFileJob);
@@ -142,6 +191,7 @@ app.get("/download/*", async (req, res) => {
     const passThrough = new PassThrough();
     passThrough.pipe(res);
     await client.downloadTo(passThrough, ftpFilePath);
+    return;
   };
 
   try {
